@@ -135,10 +135,13 @@
           <svg aria-hidden="true"><use href="#i-list"/></svg><span class="row-label">List</span>
           <select id="dList"></select>
         </label>
-        <div class="row muted" id="dRemindRow">
+        <label class="row">
           <svg aria-hidden="true"><use href="#i-bell"/></svg><span class="row-label">Remind me</span>
-          <span class="soon" id="dRemindText">Coming soon</span>
-        </div>
+          <input type="datetime-local" id="dRemind">
+          <button class="icon-btn small" id="dRemindClear" type="button" aria-label="Remove reminder" title="Remove reminder"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+        </label>
+        <p class="hint remind-hint" id="dRemindHint" hidden></p>
+        <button class="link-btn remind-hint" id="dRemindAsk" type="button" hidden>Turn on notifications</button>
       </section>
 
       <section class="card">

@@ -192,7 +192,9 @@ h2.editable { cursor: text; }
   flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px;
 }
 .row.muted { color: var(--muted); }
-.soon { font-size: 12px; }
+.remind-hint { margin: 0 6px 6px 44px; }
+.link-btn { justify-self: start; background: none; border: 0; padding: 4px 0; color: var(--accent); font-weight: 600; cursor: pointer; }
+.link-btn:hover { text-decoration: underline; }
 #dNotes {
   width: 100%; resize: vertical; border: 0; background: none; outline: none; padding: 8px 6px; min-height: 90px;
 }

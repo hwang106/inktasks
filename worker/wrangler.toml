@@ -1,0 +1,19 @@
+# InkTasks reminder service. Deploy: npx wrangler deploy (see README in this folder).
+name = "inktasks-reminders"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+preview_urls = false
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+ALLOWED_ORIGINS = "https://hwang106.github.io,http://localhost:5173,http://localhost:5174,http://127.0.0.1:5174"
+VAPID_PUBLIC = "BAO-53ySkHWPQ54gdLPm2bU8gKJ8Mr-yCAo229c3yWeVDwqFjv4Y6QnKWmvpbLyac4Eii1juAdSg0jfxnZsZ27U"
+
+# Made with `npx wrangler d1 create inktasks-reminders`
+[[d1_databases]]
+binding = "DB"
+database_name = "inktasks-reminders"
+database_id = "98e6e60b-aa18-4c17-bb8b-fa6689b756ac"

@@ -2,6 +2,7 @@ import { db, hooks as dbHooks, announce, newTask, newId } from "./db.js";
 import { SMART, today, nextDue, dueLabel, isOverdue, repeatKey, repeatLabel, REPEATS, parseYmd } from "./model.js";
 import { createSync } from "/inknotes/js/sync.js";
 import { mountSyncUI } from "/inknotes/js/sync-ui.js";
+import { createReminders, askPermission, remindAt } from "./reminders.js";
 
 const el = Object.fromEntries([...document.querySelectorAll("[id]")].map(e => [e.id, e]));
 const { app } = el;
@@ -50,6 +51,7 @@ async function save(item, { now = true } = {}) {
     await db.put(item);
     announce([item.id], windowId);
     sync.soon();
+    if (item.kind === "task") reminders.soon();
   } catch (err) {
     toast("Couldn't save on this device. Check that the browser allows site storage.");
   }
@@ -67,6 +69,7 @@ async function reload(ids) {
     if (it) items.set(id, it);
   }
   render();
+  reminders.soon();
 }
 if ("BroadcastChannel" in window) {
   const ch = new BroadcastChannel("inktasks");
@@ -178,6 +181,15 @@ el.addForm.addEventListener("submit", e => {
   render();
 });
 
+// The next copy of a repeating task keeps its reminder the same time before it's due.
+function shiftRemind(t, due) {
+  if (!t.remind || !due) return null;
+  const [day, time] = t.remind.split("T");
+  const days = Math.round((parseYmd(due) - parseYmd(t.due || day)) / 864e5);
+  const d = parseYmd(day); d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${time}`;
+}
+
 function toggleDone(t) {
   t.done = !t.done;
   t.doneAt = t.done ? Date.now() : null;
@@ -185,7 +197,7 @@ function toggleDone(t) {
   if (t.done && t.repeat) {
     const due = nextDue(t);
     const next = newTask({
-      title: t.title, listId: t.listId, important: t.important, notes: t.notes, repeat: t.repeat, due,
+      title: t.title, listId: t.listId, important: t.important, notes: t.notes, repeat: t.repeat, due, remind: shiftRemind(t, due),
       steps: (t.steps || []).map(s => ({ ...s, id: newId(), done: false })), order: t.order,
       noteId: t.noteId, noteTitle: t.noteTitle,
     });
@@ -289,9 +301,9 @@ function renderDetail() {
     const o = document.createElement("option"); o.value = l.id; o.textContent = l.name; return o;
   }));
   el.dList.value = items.get(t.listId) && !items.get(t.listId).deleted ? t.listId : "inbox";
-  el.dRemindText.textContent = t.remind
-    ? new Date(t.remind).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " (reminders coming soon)"
-    : "Coming soon";
+  if (active !== el.dRemind) el.dRemind.value = t.remind || "";
+  el.dRemindClear.hidden = !t.remind;
+  renderRemindHint(t);
   if (active !== el.dNotes) el.dNotes.value = t.notes || "";
   el.dSource.hidden = !t.noteId;
   if (t.noteId) {
@@ -336,6 +348,28 @@ el.stepForm.addEventListener("submit", e => {
 });
 el.dMyDay.onclick = () => { const t = cur(); if (!t) return; t.myDay = t.myDay === today() ? null : today(); save(t); renderDetail(); render(); };
 el.dDue.addEventListener("change", () => { const t = cur(); if (!t) return; t.due = el.dDue.value || null; save(t); renderDetail(); render(); });
+function renderRemindHint(t = cur()) {
+  const h = t && t.remind && !t.done ? reminders.hint() : "";
+  el.dRemindAsk.hidden = h !== "ask";
+  el.dRemindHint.hidden = !h || h === "ask";
+  el.dRemindHint.textContent = h === "ask" ? "" : h;
+  if (t && t.remind && !t.done && remindAt({ ...t, kind: "task" }) < Date.now() - 60e3) {
+    el.dRemindHint.hidden = false; el.dRemindHint.textContent = "That time has passed.";
+  }
+}
+async function turnOnNotifications() {
+  const p = await askPermission();
+  if (p === "granted") reminders.soon(0);
+  renderRemindHint();
+}
+el.dRemind.addEventListener("change", () => {
+  const t = cur(); if (!t) return;
+  t.remind = el.dRemind.value || null;
+  save(t); renderDetail(); renderTasks();
+  if (t.remind && "Notification" in self && Notification.permission === "default") turnOnNotifications();
+});
+el.dRemindClear.onclick = e => { e.preventDefault(); const t = cur(); if (!t) return; t.remind = null; save(t); renderDetail(); renderTasks(); };
+el.dRemindAsk.onclick = turnOnNotifications;
 el.dDueClear.onclick = e => { e.preventDefault(); const t = cur(); if (!t) return; t.due = null; save(t); renderDetail(); render(); };
 el.dRepeat.addEventListener("change", () => {
   const t = cur(); if (!t) return;
@@ -400,6 +434,9 @@ dbHooks.onVersionChange = () => {
 // ---------- OneDrive sync ----------
 const sync = createSync({ folder: "todo", stateKey: "syncState:todo", local: db });
 const syncUI = mountSyncUI({ sync, button: el.syncBtn, appName: "your tasks", toast, beforeSignIn: flushSaves });
+const reminders = createReminders({
+  all: () => [...items.values()].filter(i => i.kind === "task"),
+  remindHere: t => { toast(`Reminder: ${t.title || "Untitled task"}`, "Open", () => showTask(t.id)); clearTimeout(toastTimer); }, onChange: () => { if (selected) renderRemindHint(); } });
 
 // ---------- import from Microsoft To Do ----------
 el.importBtn.onclick = () => {
@@ -442,6 +479,16 @@ async function runImport() {
   }
 }
 
+function showTask(id, action) {
+  const t = items.get(id);
+  if (!t || t.deleted) return;
+  flushSaves();
+  view = t.listId && items.has(t.listId) && t.listId !== "inbox" ? t.listId : "inbox";
+  app.dataset.view = "tasks";
+  openDetail(t.id); render();
+  if (action === "complete" && !t.done) toggleDone(t);
+}
+
 // ---------- start ----------
 async function init() {
   let all = [];
@@ -455,7 +502,7 @@ async function init() {
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
   const params = new URLSearchParams(location.search);
-  const want = params.get("task");
+  const want = params.get("task"), action = params.get("do");
   app.dataset.view = NARROW.matches ? "lists" : "tasks";
   render();
   if (want && items.has(want)) {
@@ -464,14 +511,16 @@ async function init() {
     app.dataset.view = "tasks";
     openDetail(want); render();
     history.replaceState(null, "", location.pathname);
+    if (action === "complete" && !t.done) toggleDone(t);
   }
+  reminders.soon(800);
 
   if (sync.configured) {
     const back = await sync.start({
       allowRedirect: true,
       onStatus: syncUI.render,
       onRedirect: flushSaves,
-      onPulled: ids => { reload(ids); announce(ids, windowId); },
+      onPulled: ids => { reload(ids); announce(ids, windowId); reminders.soon(); },
     });
     if (back && back.purpose === "import") {
       if (back.ok) runImport();
@@ -482,5 +531,9 @@ async function init() {
 init();
 
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-  navigator.serviceWorker.register("sw.js").catch(err => console.warn("Offline support unavailable:", err));
+  navigator.serviceWorker.register("sw.js", { type: "module" }).catch(err => console.warn("Offline support unavailable:", err));
+  // A notification was tapped while InkTasks was open: show the task (and complete it, if asked).
+  navigator.serviceWorker.addEventListener("message", ({ data }) => {
+    if (data && data.type === "open") showTask(data.id, data.do);
+  });
 }
