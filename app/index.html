@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>InkTasks</title>
+  <meta name="description" content="Task lists that sync with your OneDrive, end-to-end encrypted. Companion to InkNotes.">
+  <meta name="theme-color" content="#2b59c3">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11l8-6.5 8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-9"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></symbol>
+  <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18.5a4.5 4.5 0 0 1-.7-8.95A6 6 0 0 1 17.8 8a4.75 4.75 0 0 1-.3 10.5z"/></symbol>
+  <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v3h16v-3"/></symbol>
+  <symbol id="i-steps" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.5l2.3 2.3 4.7-5"/></symbol>
+</svg>
+
+<div class="app" id="app" data-view="lists">
+  <aside class="sidebar" aria-label="Lists">
+    <header class="side-head">
+      <h1>InkTasks</h1>
+      <button class="icon-btn sync-btn" id="syncBtn" type="button" data-state="signedOut" aria-label="OneDrive sync" hidden>
+        <svg aria-hidden="true"><use href="#i-cloud"/></svg>
+      </button>
+    </header>
+    <input class="search" id="search" type="search" placeholder="Search tasks" aria-label="Search tasks" autocomplete="off">
+    <nav class="lists" id="smartLists" aria-label="Smart lists"></nav>
+    <hr class="rule">
+    <nav class="lists user-lists" id="userLists" aria-label="Your lists"></nav>
+    <button class="new-list" id="newList" type="button"><svg aria-hidden="true"><use href="#i-plus"/></svg>New list</button>
+    <div class="side-foot">
+      <button class="btn link" id="importBtn" type="button"><svg aria-hidden="true"><use href="#i-import"/></svg>Import from Microsoft To Do</button>
+      <p class="storage-note" id="storageNote" hidden></p>
+    </div>
+  </aside>
+
+  <main class="tasks-pane" id="tasksPane">
+    <header class="pane-head">
+      <button class="icon-btn back-btn" id="backToLists" type="button" aria-label="All lists" title="All lists">
+        <svg aria-hidden="true"><use href="#i-back"/></svg>
+      </button>
+      <div class="titles">
+        <h2 id="listTitle">My Day</h2>
+        <input class="title-edit" id="listTitleEdit" type="text" maxlength="120" aria-label="List name" hidden>
+        <p class="sub" id="listSub"></p>
+      </div>
+      <details class="menu" id="listMenu" hidden>
+        <summary class="icon-btn" aria-label="List options" title="List options"><svg aria-hidden="true"><use href="#i-more"/></svg></summary>
+        <div class="menu-panel">
+          <button class="btn" id="renameList" type="button">Rename list</button>
+          <button class="btn danger" id="deleteList" type="button">Delete list</button>
+        </div>
+      </details>
+    </header>
+
+    <form class="add-task" id="addForm" autocomplete="off">
+      <svg aria-hidden="true"><use href="#i-plus"/></svg>
+      <input id="addInput" type="text" placeholder="Add a task" aria-label="Add a task" maxlength="255">
+    </form>
+
+    <div class="task-scroll" id="taskScroll">
+      <ul class="tasks" id="taskList" aria-label="Tasks"></ul>
+      <p class="empty" id="emptyMsg" hidden></p>
+      <details class="done-section" id="doneSection" hidden>
+        <summary>Completed <span id="doneCount"></span></summary>
+        <ul class="tasks" id="doneList" aria-label="Completed tasks"></ul>
+      </details>
+    </div>
+  </main>
+
+  <aside class="detail" id="detail" aria-label="Task details" hidden>
+    <header class="detail-head">
+      <button class="icon-btn" id="detailClose" type="button" aria-label="Close details" title="Close">
+        <svg aria-hidden="true"><use href="#i-close"/></svg>
+      </button>
+    </header>
+    <div class="detail-scroll">
+      <section class="card">
+        <div class="title-row">
+          <button class="check" id="dDone" type="button" aria-pressed="false" aria-label="Completed"><svg aria-hidden="true"><use href="#i-check"/></svg></button>
+          <textarea id="dTitle" rows="1" maxlength="255" aria-label="Task title"></textarea>
+          <button class="star" id="dStar" type="button" aria-pressed="false" aria-label="Important"><svg aria-hidden="true"><use href="#i-star"/></svg></button>
+        </div>
+        <ul class="steps" id="dSteps" aria-label="Steps"></ul>
+        <form class="step-add" id="stepForm" autocomplete="off">
+          <svg aria-hidden="true"><use href="#i-plus"/></svg>
+          <input id="stepInput" type="text" placeholder="Add step" aria-label="Add step" maxlength="255">
+        </form>
+      </section>
+
+      <section class="card">
+        <button class="row-btn" id="dMyDay" type="button" aria-pressed="false">
+          <svg aria-hidden="true"><use href="#i-sun"/></svg><span>Add to My Day</span>
+        </button>
+      </section>
+
+      <section class="card rows">
+        <label class="row">
+          <svg aria-hidden="true"><use href="#i-calendar"/></svg><span class="row-label">Due</span>
+          <input type="date" id="dDue">
+          <button class="icon-btn small" id="dDueClear" type="button" aria-label="Remove due date" title="Remove due date"><svg aria-hidden="true"><use href="#i-close"/></svg></button>
+        </label>
+        <label class="row">
+          <svg aria-hidden="true"><use href="#i-repeat"/></svg><span class="row-label">Repeat</span>
+          <select id="dRepeat">
+            <option value="">Never</option>
+            <option value="daily">Daily</option>
+            <option value="weekdays">Weekdays</option>
+            <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly</option>
+            <option value="custom" hidden>Custom</option>
+          </select>
+        </label>
+        <label class="row">
+          <svg aria-hidden="true"><use href="#i-list"/></svg><span class="row-label">List</span>
+          <select id="dList"></select>
+        </label>
+        <div class="row muted" id="dRemindRow">
+          <svg aria-hidden="true"><use href="#i-bell"/></svg><span class="row-label">Remind me</span>
+          <span class="soon" id="dRemindText">Coming soon</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <textarea id="dNotes" rows="4" placeholder="Add note" aria-label="Notes"></textarea>
+        <a class="source" id="dSource" href="#" target="_blank" rel="noopener" hidden>
+          <svg aria-hidden="true"><use href="#i-note"/></svg><span></span>
+        </a>
+      </section>
+    </div>
+    <footer class="detail-foot">
+      <span id="dCreated"></span>
+      <button class="icon-btn danger" id="dDelete" type="button" aria-label="Delete task" title="Delete task"><svg aria-hidden="true"><use href="#i-trash"/></svg></button>
+    </footer>
+  </aside>
+</div>
+
+<dialog class="sheet" id="importDialog" aria-labelledby="importTitle">
+  <form class="sheet-body" method="dialog">
+    <h2 id="importTitle">Import from Microsoft To Do</h2>
+    <p id="importText">Copies your lists and tasks into InkTasks: steps, notes, due dates, repeats, and which tasks are important or done. Microsoft To Do isn't changed.</p>
+    <p class="hint" id="importHint">Microsoft will ask to let InkTasks read your tasks. That permission is only used for this import.</p>
+    <div class="progress" id="importProgress" hidden><span></span></div>
+    <div class="sheet-actions">
+      <span class="spacer"></span>
+      <button class="btn" id="importClose" type="button">Cancel</button>
+      <button class="btn primary" id="importGo" type="submit">Continue to Microsoft</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden>
+  <span id="toastText"></span>
+  <button class="btn" id="toastAction" type="button" hidden>Undo</button>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
