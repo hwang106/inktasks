@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>InkTasks check</title>
+<style>
+  :root { color-scheme: light dark; --bg: #f6f7f9; --fg: #1d2330; --muted: #5d6675; --line: #d9dde4; --accent: #2b59c3; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161a22; --fg: #e8ebf1; --muted: #9aa3b2; --line: #2c3341; --accent: #8fb0ff; } }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 15px/1.45 system-ui, sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { color: var(--muted); margin: 0 0 12px; }
+  pre { white-space: pre-wrap; word-break: break-word; border: 1px solid var(--line); border-radius: 8px; padding: 12px; font-size: 13px; }
+  button { font: inherit; padding: 10px 16px; border-radius: 8px; border: 0; background: var(--accent); color: #fff; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>InkTasks check</h1>
+<p>Shows what this browser has stored for InkNotes and InkTasks. It only reads: nothing is changed, and no passwords or sign-in tokens are shown.</p>
+<button id="copy" type="button">Copy results</button>
+<pre id="out">Checking…</pre>
+<script type="module">
+const out = document.getElementById("out");
+const lines = [];
+const add = (k, v) => lines.push(`${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`);
+const when = ms => (ms ? new Date(ms).toLocaleString() : "none");
+
+function openDb(name) {
+  return new Promise(resolve => {
+    const req = indexedDB.open(name);
+    req.onupgradeneeded = () => { req.transaction.abort(); };   // don't create it if it isn't there
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => resolve(null);
+  });
+}
+function all(db, store, keys = false) {
+  return new Promise(resolve => {
+    try {
+      const tx = db.transaction(store, "readonly"), s = tx.objectStore(store);
+      const req = keys ? s.getAllKeys() : s.getAll();
+      req.onsuccess = () => resolve(req.result); req.onerror = () => resolve(null);
+    } catch (err) { resolve("error: " + err.message); }
+  });
+}
+
+try {
+  add("checked", new Date().toLocaleString());
+  add("address", location.href);
+  add("opened as", matchMedia("(display-mode: standalone)").matches ? "installed app" : "browser tab");
+  add("browser", navigator.userAgentData ? navigator.userAgentData.brands.map(b => b.brand + " " + b.version).join(", ") : navigator.userAgent);
+  add("storage kept for good", navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : "unknown");
+  if (navigator.storage && navigator.storage.estimate) { const e = await navigator.storage.estimate(); add("storage used", Math.round(e.usage / 1024) + " KB"); }
+
+  let auth = null;
+  try { auth = JSON.parse(localStorage.getItem("inknotes-auth") || "null"); } catch (_) { auth = "unreadable"; }
+  add("Microsoft sign-in saved", auth ? (auth === "unreadable" ? auth : `yes (renewal key: ${auth.rt ? "yes" : "no"}, current access ends ${when(auth.exp)})`) : "no");
+  add("sign-in in progress", localStorage.getItem("inknotes-pkce") ? "yes" : "no");
+  add("other saved keys", Object.keys(localStorage).filter(k => !/^inknotes-(auth|pkce)$/.test(k)));
+
+  const dbs = indexedDB.databases ? await indexedDB.databases() : [];
+  add("databases", dbs.map(d => `${d.name} v${d.version}`));
+
+  if (dbs.some(d => d.name === "inktasks")) {
+    const db = await openDb("inktasks");
+    const items = db ? await all(db, "items") : null;
+    if (Array.isArray(items)) {
+      const tasks = items.filter(i => i.kind === "task"), lists = items.filter(i => i.kind === "list");
+      add("InkTasks tasks", `${tasks.filter(t => !t.deleted).length} (plus ${tasks.filter(t => t.deleted).length} deleted)`);
+      add("InkTasks lists", `${lists.filter(l => !l.deleted).length} (plus ${lists.filter(l => l.deleted).length} deleted)`);
+      add("newest task change", when(Math.max(0, ...tasks.map(t => t.updated || 0))));
+    } else add("InkTasks items", items);
+    db && db.close();
+  } else add("InkTasks database", "missing");
+
+  if (dbs.some(d => d.name === "inknotes")) {
+    const db = await openDb("inknotes");
+    if (db) {
+      const notes = await all(db, "notes");
+      add("InkNotes notes", Array.isArray(notes) ? `${notes.filter(n => !n.deleted).length} (plus ${notes.filter(n => n.deleted).length} deleted)` : notes);
+      add("InkNotes meta keys", await all(db, "meta", true));
+      db.close();
+    }
+  } else add("InkNotes database", "missing");
+
+  const regs = navigator.serviceWorker ? await navigator.serviceWorker.getRegistrations() : [];
+  add("offline helpers", regs.map(r => (r.active ? r.active.scriptURL.replace(location.origin, "") : "(none active)") + (r.waiting ? " +waiting" : "")));
+  add("caches", await caches.keys());
+  add("notifications", "Notification" in self ? Notification.permission : "unsupported");
+} catch (err) {
+  add("check failed", err.message);
+}
+out.textContent = lines.join("\n");
+document.getElementById("copy").onclick = async () => {
+  try { await navigator.clipboard.writeText(out.textContent); document.getElementById("copy").textContent = "Copied"; }
+  catch (_) { getSelection().selectAllChildren(out); }
+};
+</script>
+</body>
+</html>
