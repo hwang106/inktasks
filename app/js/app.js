@@ -134,8 +134,82 @@ function taskRow(t) {
   if (!li.querySelector(".meta").innerHTML) li.querySelector(".meta").remove();
   li.querySelector(".check").onclick = e => { e.stopPropagation(); e.currentTarget.classList.add("pop"); toggleDone(t); };
   li.querySelector(".star").onclick = e => { e.stopPropagation(); t.important = !t.important; save(t); render(); };
-  li.onclick = () => openDetail(t.id);
+  li.onclick = () => { if (!drag.justDropped) openDetail(t.id); };
+  li.addEventListener("pointerdown", e => dragStart(e, li, t));
+  li.addEventListener("contextmenu", e => { if (drag.li === li) e.preventDefault(); });   // touch-and-hold drags
   return li;
+}
+
+// ---------- drag to reorder ----------
+// Mouse and pen: drag a task up or down. Touch: press and hold, then drag. Works in lists, My Day,
+// Important and Tasks (not Planned, which is sorted by due date, or search results). The new
+// position is saved as the task's `order`, halfway between its new neighbours, so only the moved
+// task changes and syncs.
+const drag = { li: null, t: null, timer: 0, active: false, startY: 0, y: 0, justDropped: false, scrollTimer: 0 };
+const canReorder = () => !query && !(smart(view) && smart(view).byDue);
+function dragStart(e, li, t) {
+  if (t.done || !canReorder() || e.button > 0 || e.target.closest("button")) return;
+  dragReset();
+  if (e.pointerType !== "touch") e.preventDefault();   // no text selection; the click still opens the task
+  Object.assign(drag, { li, t, startY: e.clientY, y: e.clientY, pointerId: e.pointerId });
+  if (e.pointerType === "touch") drag.timer = setTimeout(() => dragBegin(), 350);
+  addEventListener("pointermove", dragMove); addEventListener("pointerup", dragEnd); addEventListener("pointercancel", dragCancel);
+}
+function dragBegin() {
+  drag.active = true;
+  drag.li.classList.add("dragging");
+  el.taskList.classList.add("reordering");
+  if (navigator.vibrate) navigator.vibrate(15);
+  drag.scrollTimer = setInterval(autoScroll, 16);
+  getSelection().removeAllRanges();
+}
+function dragMove(e) {
+  if (e.pointerId !== drag.pointerId) return;
+  drag.y = e.clientY;
+  if (!drag.active) {
+    if (Math.abs(e.clientY - drag.startY) > 6) {
+      if (e.pointerType === "touch") return dragReset();   // a scroll, not a hold
+      dragBegin();
+    } else return;
+  }
+  moveToPointer();
+}
+function moveToPointer() {
+  const rows = [...el.taskList.children].filter(r => r !== drag.li);
+  const before = rows.find(r => { const b = r.getBoundingClientRect(); return drag.y < b.top + b.height / 2; });
+  if (before ? drag.li.nextElementSibling !== before : el.taskList.lastElementChild !== drag.li) {
+    el.taskList.insertBefore(drag.li, before || null);
+  }
+}
+function autoScroll() {
+  const box = el.taskList.closest(".task-scroll").getBoundingClientRect(), edge = 48;
+  const dy = drag.y < box.top + edge ? -(box.top + edge - drag.y) : drag.y > box.bottom - edge ? drag.y - (box.bottom - edge) : 0;
+  if (dy) { el.taskList.closest(".task-scroll").scrollTop += Math.max(-20, Math.min(20, dy / 3)); moveToPointer(); }
+}
+// Keep the page from scrolling while a held task is being dragged by touch.
+el.taskList.addEventListener("touchmove", e => { if (drag.active) e.preventDefault(); }, { passive: false });
+function dragEnd(e) {
+  if (e.pointerId !== drag.pointerId) return;
+  if (drag.active) {
+    const { li, t } = drag;
+    const prev = li.previousElementSibling && items.get(li.previousElementSibling.dataset.id);
+    const next = li.nextElementSibling && items.get(li.nextElementSibling.dataset.id);
+    const o = x => x.order || 0;
+    const order = prev && next ? (o(prev) + o(next)) / 2 : prev ? o(prev) + 1000 : next ? o(next) - 1000 : t.order;
+    if (order !== t.order) { t.order = order; save(t); }
+    drag.justDropped = true; setTimeout(() => { drag.justDropped = false; }, 0);
+  }
+  dragReset();
+}
+function dragCancel(e) { if (e.pointerId === drag.pointerId) dragReset(); }
+function dragReset() {
+  const wasActive = drag.active;
+  clearTimeout(drag.timer); clearInterval(drag.scrollTimer);
+  if (drag.li) drag.li.classList.remove("dragging");
+  el.taskList.classList.remove("reordering");
+  removeEventListener("pointermove", dragMove); removeEventListener("pointerup", dragEnd); removeEventListener("pointercancel", dragCancel);
+  Object.assign(drag, { li: null, t: null, active: false, timer: 0, scrollTimer: 0 });
+  if (wasActive || drag.renderLater) { drag.renderLater = false; renderTasks(); }
 }
 
 const EMPTY = {
@@ -144,6 +218,7 @@ const EMPTY = {
   planned: "Tasks with a due date show up here.",
 };
 function renderTasks() {
+  if (drag.active) { drag.renderLater = true; return; }   // don't pull the list out from under a drag
   const s = smart(view);
   const isUserList = !s && !query;
   el.listTitle.textContent = query ? "Search" : s ? (view === "inbox" ? listName("inbox") : s.name) : listName(view);
