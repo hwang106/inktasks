@@ -3,6 +3,7 @@ import { SMART, today, nextDue, dueLabel, isOverdue, repeatKey, repeatLabel, REP
 import { createSync } from "/inknotes/js/sync.js";
 import { mountSyncUI } from "/inknotes/js/sync-ui.js";
 import { createReminders, askPermission, remindAt } from "./reminders.js";
+import { parseTask } from "./parse.js";
 
 const el = Object.fromEntries([...document.querySelectorAll("[id]")].map(e => [e.id, e]));
 const { app } = el;
@@ -245,15 +246,68 @@ function renderTasks() {
   document.title = el.listTitle.textContent + " – InkTasks";
 }
 
+// ---------- typing dates, times, repeats and lists into the add box ----------
+// "Call mom tomorrow at 5 #family" fills in the details; each recognised piece shows as a chip,
+// and tapping a chip keeps those words in the title instead.
+let keepAsText = [];
+const parseLists = () => [{ id: "inbox", name: listName("inbox") }, ...userLists()];
+function parseAdd() {
+  return parseTask(el.addInput.value, { lists: parseLists(), keep: keepAsText });
+}
+function chipLabel(c, p) {
+  if (c.kind === "date") return dueLabel(p.due);
+  if (c.kind === "time") {
+    const d = new Date(p.remind), sameDay = !p.due || p.remind.startsWith(p.due);
+    const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return sameDay && p.due ? time : `${dueLabel(p.remind.slice(0, 10))} ${time}`;
+  }
+  if (c.kind === "repeat") {
+    const r = p.repeat, names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    if (r.unit === "week" && r.days && repeatKey(r) !== "weekdays" && (r.every || 1) === 1) return "Every " + r.days.map(d => names[d]).join(", ");
+    return repeatLabel(r);
+  }
+  if (c.kind === "list") return c.label;
+  if (c.kind === "important") return "Important";
+  return c.text;
+}
+const CHIP_ICON = { date: "calendar", time: "bell", repeat: "repeat", list: "list", important: "star" };
+function renderAddChips() {
+  const text = el.addInput.value.trim();
+  if (!text) { keepAsText = []; el.addChips.hidden = true; el.addChips.replaceChildren(); return; }
+  const p = parseAdd();
+  el.addChips.replaceChildren(...p.chips.map(c => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip";
+    b.title = `Keep “${c.text}” in the title`;
+    b.setAttribute("aria-label", `${chipLabel(c, p)}. Tap to keep “${c.text}” as text`);
+    b.innerHTML = `${icon(CHIP_ICON[c.kind])}<span></span><svg class="x" aria-hidden="true"><use href="#i-close"/></svg>`;
+    b.querySelector("span").textContent = chipLabel(c, p);
+    b.addEventListener("pointerdown", e => e.preventDefault());   // keep the keyboard up
+    b.onclick = () => { keepAsText.push(c.text); renderAddChips(); el.addInput.focus(); };
+    return b;
+  }));
+  el.addChips.hidden = !p.chips.length;
+}
+el.addInput.addEventListener("input", renderAddChips);
+
 el.addForm.addEventListener("submit", e => {
   e.preventDefault();
-  const title = el.addInput.value.trim();
-  if (!title) return;
+  if (!el.addInput.value.trim()) return;
+  const p = parseAdd();
   const s = smart(view);
-  const t = newTask({ title, listId: s ? "inbox" : view, ...(s ? s.defaults() : {}) });
+  const fields = { listId: s ? "inbox" : view, ...(s ? s.defaults() : {}) };
+  if (p.listId) fields.listId = p.listId;
+  if (p.due) fields.due = p.due;
+  if (p.remind) fields.remind = p.remind;
+  if (p.repeat) fields.repeat = p.repeat;
+  if (p.important) fields.important = true;
+  if (p.myDay) fields.myDay = p.myDay;
+  const t = newTask({ title: p.title, ...fields });
   items.set(t.id, t); save(t);
-  el.addInput.value = "";
+  el.addInput.value = ""; keepAsText = []; renderAddChips();
   render();
+  if (!inView(t)) toast(`Added to ${listName(t.listId)}.`, "Open", () => showTask(t.id));
+  if (t.remind && "Notification" in self && Notification.permission === "default") turnOnNotifications();
 });
 
 // The next copy of a repeating task keeps its reminder the same time before it's due.

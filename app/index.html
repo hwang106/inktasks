@@ -74,8 +74,9 @@
 
     <form class="add-task" id="addForm" autocomplete="off">
       <svg aria-hidden="true"><use href="#i-plus"/></svg>
-      <input id="addInput" type="text" placeholder="Add a task" aria-label="Add a task" maxlength="255">
+      <input id="addInput" type="text" placeholder="Add a task" aria-label="Add a task" maxlength="255" aria-describedby="addChips">
     </form>
+    <div class="add-chips" id="addChips" aria-live="polite" hidden></div>
 
     <div class="task-scroll" id="taskScroll">
       <ul class="tasks" id="taskList" aria-label="Tasks"></ul>

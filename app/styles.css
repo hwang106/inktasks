@@ -101,6 +101,17 @@ h2.editable { cursor: text; }
 }
 .add-task input { flex: 1; min-width: 0; border: 0; background: none; padding: 13px 0; outline: none; color: var(--fg); }
 .add-task:focus-within { border-color: var(--accent); }
+.add-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 20px 10px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 4px 6px 4px 9px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--accent);
+  font: 600 12.5px/1.2 var(--font-body); cursor: pointer;
+}
+.chip svg { width: 14px; height: 14px; flex: none; }
+.chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg); }
+.chip .x { opacity: .5; }
+.chip:hover { background: var(--hover); }
+.chip:hover .x { opacity: 1; }
 
 .task-scroll { flex: 1; overflow-y: auto; padding: 0 20px max(80px, env(safe-area-inset-bottom, 0px)); }
 .tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }

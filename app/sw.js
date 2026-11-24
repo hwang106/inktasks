@@ -13,10 +13,10 @@ import { db } from "./js/db.js";
 import { SNOOZE_MINUTES } from "./js/reminders-core.js";
 import { completeFromNotification, snooze } from "./js/reminder-actions.js";
 
-const CACHE = "inktasks-v2";
+const CACHE = "inktasks-v3";
 const SHELL = [
   "./", "index.html", "styles.css", "manifest.webmanifest",
-  "js/app.js", "js/db.js", "js/model.js", "js/import.js", "js/config.js", "js/reminders.js", "js/reminders-core.js", "js/reminder-actions.js",
+  "js/app.js", "js/db.js", "js/model.js", "js/import.js", "js/config.js", "js/reminders.js", "js/reminders-core.js", "js/reminder-actions.js", "js/parse.js",
   "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png",
   "/inknotes/js/sync.js", "/inknotes/js/sync-ui.js", "/inknotes/js/sync-engine.js", "/inknotes/js/auth.js",
   "/inknotes/js/graph.js", "/inknotes/js/crypt.js", "/inknotes/js/store.js", "/inknotes/js/config.js",
